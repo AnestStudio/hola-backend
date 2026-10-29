@@ -34,6 +34,12 @@ public class RefreshToken extends BaseEntity {
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
+    @Column(name = "device_info", length = 255)
+    private String deviceInfo;
+
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 

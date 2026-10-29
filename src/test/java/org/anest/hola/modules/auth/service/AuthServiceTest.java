@@ -11,7 +11,7 @@ import org.anest.hola.modules.auth.entity.RefreshToken;
 import org.anest.hola.modules.auth.repository.RefreshTokenRepository;
 import org.anest.hola.modules.user.dto.UserAuthDto;
 import org.anest.hola.modules.user.dto.UserResponse;
-import org.anest.hola.modules.user.entity.Role;
+import org.anest.hola.modules.user.entity.RoleName;
 import org.anest.hola.modules.user.entity.UserStatus;
 import org.anest.hola.modules.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +62,7 @@ class AuthServiceTest {
                 .email("student@hola.edu.vn")
                 .fullName("Nguyen Van A")
                 .status(UserStatus.ACTIVE)
-                .roles(Set.of(Role.USER))
+                .roles(Set.of(RoleName.USER))
                 .build();
     }
 
@@ -89,7 +89,7 @@ class AuthServiceTest {
         assertThat(response.getRefreshToken()).isEqualTo("raw-refresh-token");
         assertThat(response.getUser().getEmail()).isEqualTo("student@hola.edu.vn");
         assertThat(response.getUser().getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(response.getUser().getRoles()).containsExactly(Role.USER);
+        assertThat(response.getUser().getRoles()).containsExactly(RoleName.USER);
 
         ArgumentCaptor<RefreshToken> tokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
         verify(refreshTokenRepository).save(tokenCaptor.capture());

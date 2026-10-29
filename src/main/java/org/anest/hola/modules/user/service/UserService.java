@@ -6,9 +6,11 @@ import org.anest.hola.common.exception.ErrorCode;
 import org.anest.hola.modules.user.dto.UserAuthDto;
 import org.anest.hola.modules.user.dto.UserResponse;
 import org.anest.hola.modules.user.entity.Role;
+import org.anest.hola.modules.user.entity.RoleName;
 import org.anest.hola.modules.user.entity.User;
 import org.anest.hola.modules.user.entity.UserStatus;
 import org.anest.hola.modules.user.mapper.UserMapper;
+import org.anest.hola.modules.user.repository.RoleRepository;
 import org.anest.hola.modules.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ import java.util.Set;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final UserMapper userMapper;
 
     public UserResponse getById(Long id) {
@@ -62,12 +65,15 @@ public class UserService {
             throw new AppException(ErrorCode.USER_ALREADY_EXISTS);
         }
 
+        Role defaultRole = roleRepository.findByRoleName(RoleName.USER)
+                .orElseGet(() -> roleRepository.save(Role.builder().roleName(RoleName.USER).build()));
+
         User user = User.builder()
                 .email(normalizedEmail)
                 .passwordHash(passwordHash)
                 .fullName(fullName.trim())
                 .status(UserStatus.ACTIVE)
-                .roles(new HashSet<>(Set.of(Role.USER)))
+                .roles(new HashSet<>(Set.of(defaultRole)))
                 .build();
 
         User savedUser = userRepository.save(user);

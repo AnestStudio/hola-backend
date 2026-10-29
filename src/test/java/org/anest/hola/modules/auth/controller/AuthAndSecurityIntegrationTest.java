@@ -9,7 +9,7 @@ import org.anest.hola.modules.auth.service.AuthService;
 import org.anest.hola.modules.auth.service.JwtTokenService;
 import org.anest.hola.modules.user.controller.UserController;
 import org.anest.hola.modules.user.dto.UserResponse;
-import org.anest.hola.modules.user.entity.Role;
+import org.anest.hola.modules.user.entity.RoleName;
 import org.anest.hola.modules.user.entity.UserStatus;
 import org.anest.hola.modules.user.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -55,7 +55,7 @@ class AuthAndSecurityIntegrationTest {
                 .email("student@hola.edu.vn")
                 .fullName("Nguyen Van A")
                 .status(UserStatus.ACTIVE)
-                .roles(Set.of(Role.USER))
+                .roles(Set.of(RoleName.USER))
                 .build();
 
         AuthResponse authResponse = AuthResponse.builder()
@@ -138,7 +138,7 @@ class AuthAndSecurityIntegrationTest {
         UserResponse user = UserResponse.builder()
                 .id(42L)
                 .email("user42@hola.edu.vn")
-                .roles(Set.of(Role.USER, Role.LANDLORD))
+                .roles(Set.of(RoleName.USER, RoleName.LANDLORD))
                 .status(UserStatus.ACTIVE)
                 .build();
 
@@ -149,7 +149,7 @@ class AuthAndSecurityIntegrationTest {
                 .email("user42@hola.edu.vn")
                 .fullName("Landlord User")
                 .status(UserStatus.ACTIVE)
-                .roles(Set.of(Role.USER, Role.LANDLORD))
+                .roles(Set.of(RoleName.USER, RoleName.LANDLORD))
                 .build());
 
         mockMvc.perform(get("/api/v1/users/me")
@@ -172,7 +172,7 @@ class AuthAndSecurityIntegrationTest {
         UserResponse regularUser = UserResponse.builder()
                 .id(42L)
                 .email("user42@hola.edu.vn")
-                .roles(Set.of(Role.USER))
+                .roles(Set.of(RoleName.USER))
                 .status(UserStatus.ACTIVE)
                 .build();
 
@@ -189,7 +189,7 @@ class AuthAndSecurityIntegrationTest {
         UserResponse adminUser = UserResponse.builder()
                 .id(1L)
                 .email("admin@hola.edu.vn")
-                .roles(Set.of(Role.USER, Role.ADMIN))
+                .roles(Set.of(RoleName.USER, RoleName.ADMIN))
                 .status(UserStatus.ACTIVE)
                 .build();
 
@@ -200,7 +200,7 @@ class AuthAndSecurityIntegrationTest {
                 .email("target@hola.edu.vn")
                 .fullName("Target User")
                 .status(UserStatus.ACTIVE)
-                .roles(Set.of(Role.USER))
+                .roles(Set.of(RoleName.USER))
                 .build());
 
         mockMvc.perform(get("/api/v1/users/99")
@@ -215,7 +215,7 @@ class AuthAndSecurityIntegrationTest {
         UserResponse adminUser = UserResponse.builder()
                 .id(1L)
                 .email("admin@hola.edu.vn")
-                .roles(Set.of(Role.USER, Role.ADMIN))
+                .roles(Set.of(RoleName.USER, RoleName.ADMIN))
                 .status(UserStatus.ACTIVE)
                 .build();
 
@@ -233,7 +233,7 @@ class AuthAndSecurityIntegrationTest {
         UserResponse adminUser = UserResponse.builder()
                 .id(1L)
                 .email("admin@hola.edu.vn")
-                .roles(Set.of(Role.USER, Role.ADMIN))
+                .roles(Set.of(RoleName.USER, RoleName.ADMIN))
                 .status(UserStatus.ACTIVE)
                 .build();
 
@@ -273,7 +273,7 @@ class AuthAndSecurityIntegrationTest {
                 .email("student@hola.edu.vn")
                 .fullName("Nguyen Van A")
                 .status(UserStatus.ACTIVE)
-                .roles(Set.of(Role.USER))
+                .roles(Set.of(RoleName.USER))
                 .build();
 
         AuthResponse authResponse = AuthResponse.builder()
@@ -347,7 +347,7 @@ class AuthAndSecurityIntegrationTest {
                 .email("student@hola.edu.vn")
                 .fullName("Nguyen Van A")
                 .status(UserStatus.ACTIVE)
-                .roles(Set.of(Role.USER))
+                .roles(Set.of(RoleName.USER))
                 .build();
 
         AuthResponse authResponse = AuthResponse.builder()

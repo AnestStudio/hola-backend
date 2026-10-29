@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.anest.hola.modules.user.entity.Role;
+import org.anest.hola.modules.user.entity.RoleName;
 import org.anest.hola.modules.user.entity.UserStatus;
 
 import java.time.LocalDateTime;
@@ -22,7 +22,7 @@ public class UserResponse {
     private String email;
     private String fullName;
     private UserStatus status;
-    private Set<Role> roles;
+    private Set<RoleName> roles;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -3,7 +3,7 @@ package org.anest.hola.modules.auth.service;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.anest.hola.modules.user.dto.UserResponse;
-import org.anest.hola.modules.user.entity.Role;
+import org.anest.hola.modules.user.entity.RoleName;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -41,7 +41,7 @@ public class JwtTokenService {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(accessTokenExpirationSeconds);
         List<String> roles = user.getRoles().stream()
-                .map(Role::name)
+                .map(RoleName::name)
                 .sorted()
                 .toList();
 
