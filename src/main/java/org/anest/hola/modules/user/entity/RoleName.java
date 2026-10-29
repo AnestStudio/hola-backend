@@ -4,6 +4,7 @@ public enum RoleName {
     USER,
     ADMIN,
     LANDLORD,
-    EMPLOYER
+    EMPLOYER,
+    MERCHANT
 }
 

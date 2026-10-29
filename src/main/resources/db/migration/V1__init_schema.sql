@@ -15,7 +15,8 @@ INSERT INTO roles (role_name, description) VALUES
     ('USER', 'Người dùng thông thường (Sinh viên)'),
     ('ADMIN', 'Quản trị viên hệ thống'),
     ('LANDLORD', 'Chủ nhà trọ / Chủ bất động sản'),
-    ('EMPLOYER', 'Nhà tuyển dụng việc làm');
+    ('EMPLOYER', 'Nhà tuyển dụng việc làm'),
+    ('MERCHANT', 'Chủ cửa hàng đồ ăn / thức uống');
 
 CREATE TABLE users (
     id            BIGINT AUTO_INCREMENT PRIMARY KEY,
