@@ -75,6 +75,10 @@ public class AuthService {
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_TOKEN));
 
         LocalDateTime now = LocalDateTime.now();
+        if (storedToken.isRevoked() || storedToken.isExpired(now)) {
+            throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
         int updatedRows = refreshTokenRepository.revokeIfActive(storedToken.getId(), now);
         if (updatedRows != 1) {
             throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN);
@@ -96,7 +100,7 @@ public class AuthService {
     }
 
     @Transactional
-    @Scheduled(cron = "${security.jwt.cleanup-cron:0 0 3 * * *}")
+    @Scheduled(cron = "${security.jwt.cleanup-cron}")
     public int purgeRevokedOrExpiredTokens() {
         int deleted = refreshTokenRepository.deleteRevokedOrExpired(LocalDateTime.now());
         if (deleted > 0) {

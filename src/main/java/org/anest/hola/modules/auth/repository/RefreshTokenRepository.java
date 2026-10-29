@@ -18,7 +18,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Modifying
     @Query("""
             UPDATE RefreshToken rt
-            SET rt.revoked = true, rt.revokedAt = :now
+            SET rt.revoked = true, rt.revokedAt = :now, rt.updatedAt = :now
             WHERE rt.id = :id AND rt.revoked = false AND rt.expiresAt > :now
             """)
     int revokeIfActive(@Param("id") Long id, @Param("now") LocalDateTime now);
@@ -26,7 +26,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Modifying
     @Query("""
             UPDATE RefreshToken rt
-            SET rt.revoked = true, rt.revokedAt = :now
+            SET rt.revoked = true, rt.revokedAt = :now, rt.updatedAt = :now
             WHERE rt.tokenHash = :tokenHash AND rt.revoked = false
             """)
     int revokeByTokenHash(@Param("tokenHash") String tokenHash, @Param("now") LocalDateTime now);

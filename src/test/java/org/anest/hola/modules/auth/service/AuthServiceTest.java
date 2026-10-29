@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -198,6 +199,27 @@ class AuthServiceTest {
                 .isInstanceOf(AppException.class)
                 .extracting(ex -> ((AppException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    @Test
+    void refresh_WhenTokenIsAlreadyExpired_ShouldFailFastWithoutExecutingUpdate() {
+        RefreshToken expiredToken = RefreshToken.builder()
+                .id(10L)
+                .userId(activeUserResponse.getId())
+                .tokenHash("expired-hash")
+                .expiresAt(LocalDateTime.now().minusMinutes(5))
+                .revoked(false)
+                .build();
+
+        when(jwtTokenService.hashRefreshToken("expired-raw-token")).thenReturn("expired-hash");
+        when(refreshTokenRepository.findByTokenHash("expired-hash")).thenReturn(Optional.of(expiredToken));
+
+        assertThatThrownBy(() -> authService.refresh(new RefreshTokenRequest("expired-raw-token")))
+                .isInstanceOf(AppException.class)
+                .extracting(ex -> ((AppException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
+
+        verify(refreshTokenRepository, never()).revokeIfActive(any(), any());
     }
 
     @Test

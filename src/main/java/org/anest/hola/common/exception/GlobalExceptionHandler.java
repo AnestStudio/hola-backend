@@ -35,8 +35,12 @@ public class GlobalExceptionHandler {
 
     private static final Comparator<FieldError> FIELD_ERROR_COMPARATOR = Comparator
             .comparing(FieldError::getField)
-            .thenComparingInt(GlobalExceptionHandler::constraintPriority)
+            .thenComparingInt(fe -> constraintPriority(fe.getCode()))
             .thenComparing(fe -> fe.getCode() != null ? fe.getCode() : "");
+
+    private static final Comparator<MessageSourceResolvable> RESOLVABLE_ERROR_COMPARATOR = Comparator
+            .comparingInt((MessageSourceResolvable r) -> constraintPriority(extractPrimaryCode(r)))
+            .thenComparing(GlobalExceptionHandler::extractPrimaryCode);
 
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
@@ -69,7 +73,10 @@ public class GlobalExceptionHandler {
             String paramName = parameter.getParameterName() != null
                     ? parameter.getParameterName()
                     : "param" + parameter.getParameterIndex();
-            for (MessageSourceResolvable resolvable : result.getResolvableErrors()) {
+            List<MessageSourceResolvable> sortedResolvables = result.getResolvableErrors().stream()
+                    .sorted(RESOLVABLE_ERROR_COMPARATOR)
+                    .toList();
+            for (MessageSourceResolvable resolvable : sortedResolvables) {
                 if (resolvable instanceof FieldError fieldError) {
                     errors.putIfAbsent(fieldError.getField(), fieldError.getDefaultMessage());
                 } else {
@@ -175,9 +182,20 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(errorCode.getCode(), errorCode.getMessage()));
     }
 
-    private static int constraintPriority(FieldError fieldError) {
-        String code = fieldError.getCode();
-        if (code == null) {
+    private static String extractPrimaryCode(MessageSourceResolvable resolvable) {
+        if (resolvable instanceof FieldError fieldError && fieldError.getCode() != null) {
+            return fieldError.getCode();
+        }
+        String[] codes = resolvable.getCodes();
+        if (codes != null && codes.length > 0) {
+            String lastCode = codes[codes.length - 1];
+            return lastCode != null ? lastCode : "";
+        }
+        return "";
+    }
+
+    private static int constraintPriority(String code) {
+        if (code == null || code.isEmpty()) {
             return 10;
         }
         return switch (code) {

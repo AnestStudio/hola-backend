@@ -1,5 +1,7 @@
 package org.anest.hola.modules.auth.controller;
 
+import org.anest.hola.common.exception.AppException;
+import org.anest.hola.common.exception.ErrorCode;
 import org.anest.hola.common.exception.GlobalExceptionHandler;
 import org.anest.hola.config.SecurityConfig;
 import org.anest.hola.modules.auth.dto.AuthResponse;
@@ -22,6 +24,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -260,6 +264,185 @@ class AuthAndSecurityIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(9005))
                 .andExpect(jsonPath("$.message").value("Dữ liệu bị trùng lặp hoặc xung đột với trạng thái hiện tại"));
+    }
+
+    @Test
+    void login_WithValidCredentials_ShouldReturn200Ok() throws Exception {
+        UserResponse userResponse = UserResponse.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .fullName("Nguyen Van A")
+                .status(UserStatus.ACTIVE)
+                .roles(Set.of(Role.USER))
+                .build();
+
+        AuthResponse authResponse = AuthResponse.builder()
+                .accessToken("jwt-access-token")
+                .refreshToken("opaque-refresh-token")
+                .expiresIn(3600)
+                .user(userResponse)
+                .build();
+
+        when(authService.login(any())).thenReturn(authResponse);
+
+        String requestJson = """
+                {
+                  "email": "student@hola.edu.vn",
+                  "password": "Password123!"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.message").value("Đăng nhập thành công"))
+                .andExpect(jsonPath("$.data.accessToken").value("jwt-access-token"))
+                .andExpect(jsonPath("$.data.refreshToken").value("opaque-refresh-token"))
+                .andExpect(jsonPath("$.data.user.email").value("student@hola.edu.vn"));
+    }
+
+    @Test
+    void login_WithInvalidPayload_ShouldReturn400ValidationError() throws Exception {
+        String invalidJson = """
+                {
+                  "email": "invalid-email",
+                  "password": ""
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(9002))
+                .andExpect(jsonPath("$.data.email").value("Định dạng email không hợp lệ"))
+                .andExpect(jsonPath("$.data.password").value("Mật khẩu không được để trống"));
+    }
+
+    @Test
+    void login_WithInvalidCredentials_ShouldReturn401Unauthorized() throws Exception {
+        when(authService.login(any())).thenThrow(new AppException(ErrorCode.INVALID_CREDENTIALS));
+
+        String requestJson = """
+                {
+                  "email": "student@hola.edu.vn",
+                  "password": "WrongPassword123!"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(1004))
+                .andExpect(jsonPath("$.message").value("Email hoặc mật khẩu không chính xác"));
+    }
+
+    @Test
+    void refresh_WithValidToken_ShouldReturn200Ok() throws Exception {
+        UserResponse userResponse = UserResponse.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .fullName("Nguyen Van A")
+                .status(UserStatus.ACTIVE)
+                .roles(Set.of(Role.USER))
+                .build();
+
+        AuthResponse authResponse = AuthResponse.builder()
+                .accessToken("new-jwt-access-token")
+                .refreshToken("new-opaque-refresh-token")
+                .expiresIn(3600)
+                .user(userResponse)
+                .build();
+
+        when(authService.refresh(any())).thenReturn(authResponse);
+
+        String requestJson = """
+                {
+                  "refreshToken": "valid-refresh-token"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.message").value("Làm mới phiên đăng nhập thành công"))
+                .andExpect(jsonPath("$.data.accessToken").value("new-jwt-access-token"))
+                .andExpect(jsonPath("$.data.refreshToken").value("new-opaque-refresh-token"));
+    }
+
+    @Test
+    void refresh_WithBlankToken_ShouldReturn400ValidationError() throws Exception {
+        String invalidJson = """
+                {
+                  "refreshToken": "   "
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(9002))
+                .andExpect(jsonPath("$.data.refreshToken").value("Refresh token không được để trống"));
+    }
+
+    @Test
+    void refresh_WithExpiredOrRevokedToken_ShouldReturn401Unauthorized() throws Exception {
+        when(authService.refresh(any())).thenThrow(new AppException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+        String requestJson = """
+                {
+                  "refreshToken": "expired-refresh-token"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(1005))
+                .andExpect(jsonPath("$.message").value("Phiên làm mới không hợp lệ hoặc đã hết hạn, vui lòng đăng nhập lại"));
+    }
+
+    @Test
+    void logout_WithValidToken_ShouldReturn200Ok() throws Exception {
+        doNothing().when(authService).logout(any());
+
+        String requestJson = """
+                {
+                  "refreshToken": "valid-refresh-token"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.message").value("Đăng xuất thành công"));
+
+        verify(authService).logout(any());
+    }
+
+    @Test
+    void logout_WithBlankToken_ShouldReturn400ValidationError() throws Exception {
+        String invalidJson = """
+                {
+                  "refreshToken": ""
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(9002))
+                .andExpect(jsonPath("$.data.refreshToken").value("Refresh token không được để trống"));
     }
 }
 

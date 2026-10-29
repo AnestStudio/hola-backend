@@ -97,5 +97,42 @@ class UserServiceTest {
                 .extracting(ex -> ((AppException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.ACCOUNT_INACTIVE);
     }
+
+    @Test
+    void getById_WhenUserExists_ShouldReturnUserResponse() {
+        User user = User.builder()
+                .id(10L)
+                .email("user10@hola.edu.vn")
+                .passwordHash("hashed-pw")
+                .fullName("User 10")
+                .status(UserStatus.ACTIVE)
+                .roles(Set.of(Role.USER))
+                .build();
+
+        UserResponse expectedResponse = UserResponse.builder()
+                .id(10L)
+                .email("user10@hola.edu.vn")
+                .fullName("User 10")
+                .status(UserStatus.ACTIVE)
+                .roles(Set.of(Role.USER))
+                .build();
+
+        when(userRepository.findWithRolesById(10L)).thenReturn(java.util.Optional.of(user));
+        when(userMapper.toResponse(user)).thenReturn(expectedResponse);
+
+        UserResponse result = userService.getById(10L);
+
+        assertThat(result).isEqualTo(expectedResponse);
+    }
+
+    @Test
+    void getById_WhenUserDoesNotExist_ShouldThrowUserNotFound() {
+        when(userRepository.findWithRolesById(999L)).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> userService.getById(999L))
+                .isInstanceOf(AppException.class)
+                .extracting(ex -> ((AppException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
 }
 
