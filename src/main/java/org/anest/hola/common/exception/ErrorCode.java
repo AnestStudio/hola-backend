@@ -31,7 +31,8 @@ public enum ErrorCode {
     OTP_MAX_ATTEMPTS_EXCEEDED(1010, MessageKeys.ERROR_OTP_MAX_ATTEMPTS_EXCEEDED, HttpStatus.BAD_REQUEST),
     ACCOUNT_ALREADY_VERIFIED(1011, MessageKeys.ERROR_ACCOUNT_ALREADY_VERIFIED, HttpStatus.CONFLICT),
 
-    // User Domain Errors (2xxx)
+    // Identity Domain Errors (2xxx)
+    // Future ranges: 3xxx (location/media), 4xxx (food)
     USER_NOT_FOUND(2001, MessageKeys.ERROR_USER_NOT_FOUND, HttpStatus.NOT_FOUND),
     USER_ALREADY_EXISTS(2002, MessageKeys.ERROR_USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
 

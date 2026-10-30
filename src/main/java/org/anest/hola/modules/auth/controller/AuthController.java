@@ -17,7 +17,7 @@ import org.anest.hola.modules.auth.dto.ResendOtpRequest;
 import org.anest.hola.modules.auth.dto.ResetPasswordRequest;
 import org.anest.hola.modules.auth.dto.VerifyEmailRequest;
 import org.anest.hola.modules.auth.service.AuthService;
-import org.anest.hola.modules.user.dto.UserResponse;
+import org.anest.hola.modules.identity.dto.UserResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

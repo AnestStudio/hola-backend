@@ -2,8 +2,8 @@ package org.anest.hola.modules.auth.service;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.anest.hola.modules.user.dto.UserResponse;
-import org.anest.hola.modules.user.entity.RoleName;
+import org.anest.hola.modules.identity.dto.UserResponse;
+import org.anest.hola.modules.identity.entity.RoleName;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;

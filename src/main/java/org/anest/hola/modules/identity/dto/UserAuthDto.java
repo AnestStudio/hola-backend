@@ -1,4 +1,4 @@
-package org.anest.hola.modules.user.dto;
+package org.anest.hola.modules.identity.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,6 +1,6 @@
-package org.anest.hola.modules.user.repository;
+package org.anest.hola.modules.identity.repository;
 
-import org.anest.hola.modules.user.entity.UserDetail;
+import org.anest.hola.modules.identity.entity.UserDetail;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

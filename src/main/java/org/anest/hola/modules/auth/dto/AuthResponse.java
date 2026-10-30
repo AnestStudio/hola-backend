@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.anest.hola.modules.user.dto.UserResponse;
+import org.anest.hola.modules.identity.dto.UserResponse;
 
 @Getter
 @Setter

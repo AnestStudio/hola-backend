@@ -1,7 +1,7 @@
-package org.anest.hola.modules.user.repository;
+package org.anest.hola.modules.identity.repository;
 
-import org.anest.hola.modules.user.entity.Role;
-import org.anest.hola.modules.user.entity.RoleName;
+import org.anest.hola.modules.identity.entity.Role;
+import org.anest.hola.modules.identity.entity.RoleName;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

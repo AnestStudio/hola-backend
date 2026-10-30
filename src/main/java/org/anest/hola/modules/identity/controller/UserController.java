@@ -1,4 +1,4 @@
-package org.anest.hola.modules.user.controller;
+package org.anest.hola.modules.identity.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -6,8 +6,8 @@ import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.anest.hola.common.dto.ApiResponse;
 import org.anest.hola.common.security.SecurityUtils;
-import org.anest.hola.modules.user.dto.UserResponse;
-import org.anest.hola.modules.user.service.UserService;
+import org.anest.hola.modules.identity.dto.UserResponse;
+import org.anest.hola.modules.identity.service.UserService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;

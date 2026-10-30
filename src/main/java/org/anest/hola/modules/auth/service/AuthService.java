@@ -1,7 +1,6 @@
 package org.anest.hola.modules.auth.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.anest.hola.common.exception.AppException;
 import org.anest.hola.common.exception.ErrorCode;
 import org.anest.hola.modules.auth.dto.AuthResponse;
@@ -19,12 +18,12 @@ import org.anest.hola.modules.auth.entity.RefreshToken;
 import org.anest.hola.modules.auth.repository.EmailVerificationTokenRepository;
 import org.anest.hola.modules.auth.repository.PasswordResetTokenRepository;
 import org.anest.hola.modules.auth.repository.RefreshTokenRepository;
-import org.anest.hola.modules.user.dto.UserAuthDto;
-import org.anest.hola.modules.user.dto.UserResponse;
-import org.anest.hola.modules.user.entity.UserStatus;
-import org.anest.hola.modules.user.service.UserService;
+import org.anest.hola.modules.identity.dto.UserAuthDto;
+import org.anest.hola.modules.identity.dto.UserResponse;
+import org.anest.hola.modules.identity.entity.UserStatus;
+import org.anest.hola.modules.identity.service.UserService;
+import org.anest.hola.modules.notification.service.EmailService;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +33,6 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -266,23 +264,6 @@ public class AuthService {
     public void logout(LogoutRequest request) {
         String tokenHash = jwtTokenService.hashRefreshToken(request.getRefreshToken().trim());
         refreshTokenRepository.revokeByTokenHash(tokenHash, LocalDateTime.now());
-    }
-
-    @Transactional
-    @Scheduled(cron = "${security.jwt.cleanup-cron}")
-    public int purgeRevokedOrExpiredTokens() {
-        LocalDateTime now = LocalDateTime.now();
-        int deletedRefresh = refreshTokenRepository.deleteRevokedOrExpired(now);
-        int deletedEmailOtp = emailVerificationTokenRepository.deleteUsedOrExpired(now);
-        int deletedPasswordOtp = passwordResetTokenRepository.deleteUsedOrExpired(now);
-        int totalDeleted = deletedRefresh + deletedEmailOtp + deletedPasswordOtp;
-        if (totalDeleted > 0) {
-            log.info(
-                    "Purged expired/used auth tokens (refresh={}, emailVerification={}, passwordReset={})",
-                    deletedRefresh, deletedEmailOtp, deletedPasswordOtp
-            );
-        }
-        return totalDeleted;
     }
 
     private AuthResponse issueTokens(UserResponse user) {

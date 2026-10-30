@@ -16,11 +16,12 @@ import org.anest.hola.modules.auth.entity.RefreshToken;
 import org.anest.hola.modules.auth.repository.EmailVerificationTokenRepository;
 import org.anest.hola.modules.auth.repository.PasswordResetTokenRepository;
 import org.anest.hola.modules.auth.repository.RefreshTokenRepository;
-import org.anest.hola.modules.user.dto.UserAuthDto;
-import org.anest.hola.modules.user.dto.UserResponse;
-import org.anest.hola.modules.user.entity.RoleName;
-import org.anest.hola.modules.user.entity.UserStatus;
-import org.anest.hola.modules.user.service.UserService;
+import org.anest.hola.modules.identity.dto.UserAuthDto;
+import org.anest.hola.modules.identity.dto.UserResponse;
+import org.anest.hola.modules.identity.entity.RoleName;
+import org.anest.hola.modules.identity.entity.UserStatus;
+import org.anest.hola.modules.identity.service.UserService;
+import org.anest.hola.modules.notification.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -532,19 +533,5 @@ class AuthServiceTest {
         authService.logout(new LogoutRequest("old-raw-token"));
 
         verify(refreshTokenRepository).revokeByTokenHash(eq("old-hash"), any(LocalDateTime.class));
-    }
-
-    @Test
-    void purgeRevokedOrExpiredTokens_ShouldCallRepositoryDeleteOnAllTokenTables() {
-        when(refreshTokenRepository.deleteRevokedOrExpired(any(LocalDateTime.class))).thenReturn(5);
-        when(emailVerificationTokenRepository.deleteUsedOrExpired(any(LocalDateTime.class))).thenReturn(3);
-        when(passwordResetTokenRepository.deleteUsedOrExpired(any(LocalDateTime.class))).thenReturn(2);
-
-        int deleted = authService.purgeRevokedOrExpiredTokens();
-
-        assertThat(deleted).isEqualTo(10);
-        verify(refreshTokenRepository).deleteRevokedOrExpired(any(LocalDateTime.class));
-        verify(emailVerificationTokenRepository).deleteUsedOrExpired(any(LocalDateTime.class));
-        verify(passwordResetTokenRepository).deleteUsedOrExpired(any(LocalDateTime.class));
     }
 }

@@ -1,4 +1,4 @@
-package org.anest.hola.modules.user.entity;
+package org.anest.hola.modules.identity.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
