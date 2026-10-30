@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @Builder
@@ -14,6 +16,12 @@ import lombok.Setter;
 public class UserAuthDto {
 
     private String passwordHash;
+    private int failedLoginAttempts;
+    private LocalDateTime lockedUntil;
     private UserResponse user;
+
+    public boolean isTemporarilyLocked(LocalDateTime now) {
+        return lockedUntil != null && lockedUntil.isAfter(now);
+    }
 }
 

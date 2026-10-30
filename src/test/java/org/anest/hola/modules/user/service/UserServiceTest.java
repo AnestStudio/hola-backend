@@ -17,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Set;
 
@@ -42,7 +43,7 @@ class UserServiceTest {
     private UserService userService;
 
     @Test
-    void createUser_ShouldNormalizeEmailAndSaveActiveUser() {
+    void createUser_ShouldNormalizeEmailAndSaveUnverifiedUser() {
         Role userRole = Role.builder().id(1L).roleName(RoleName.USER).build();
 
         User savedUser = User.builder()
@@ -50,7 +51,7 @@ class UserServiceTest {
                 .email("student@hola.edu.vn")
                 .passwordHash("hashed-pw")
                 .fullName("Nguyen Van A")
-                .status(UserStatus.ACTIVE)
+                .status(UserStatus.UNVERIFIED)
                 .roles(Set.of(userRole))
                 .build();
 
@@ -58,7 +59,7 @@ class UserServiceTest {
                 .id(1L)
                 .email("student@hola.edu.vn")
                 .fullName("Nguyen Van A")
-                .status(UserStatus.ACTIVE)
+                .status(UserStatus.UNVERIFIED)
                 .roles(Set.of(RoleName.USER))
                 .build();
 
@@ -73,7 +74,7 @@ class UserServiceTest {
         verify(userRepository).save(userCaptor.capture());
         assertThat(userCaptor.getValue().getEmail()).isEqualTo("student@hola.edu.vn");
         assertThat(userCaptor.getValue().getFullName()).isEqualTo("Nguyen Van A");
-        assertThat(userCaptor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(userCaptor.getValue().getStatus()).isEqualTo(UserStatus.UNVERIFIED);
         assertThat(userCaptor.getValue().getRoles()).containsExactly(userRole);
         assertThat(result).isEqualTo(expectedResponse);
     }
@@ -146,5 +147,81 @@ class UserServiceTest {
                 .isInstanceOf(AppException.class)
                 .extracting(ex -> ((AppException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    void recordFailedLoginAttempt_WhenBelowLimit_ShouldIncrementCounterWithoutLocking() {
+        User user = User.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .failedLoginAttempts(2)
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        LocalDateTime now = LocalDateTime.of(2026, 10, 30, 12, 0);
+        boolean locked = userService.recordFailedLoginAttempt(1L, now);
+
+        assertThat(locked).isFalse();
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(3);
+        assertThat(user.getLockedUntil()).isNull();
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void recordFailedLoginAttempt_WhenReachingFifthAttempt_ShouldLockFor15Minutes() {
+        User user = User.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .failedLoginAttempts(4)
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        LocalDateTime now = LocalDateTime.of(2026, 10, 30, 12, 0);
+        boolean locked = userService.recordFailedLoginAttempt(1L, now);
+
+        assertThat(locked).isTrue();
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(5);
+        assertThat(user.getLockedUntil()).isEqualTo(now.plusMinutes(15));
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void recordFailedLoginAttempt_AfterPreviousLockExpired_ShouldRestartCounterFromOne() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 30, 12, 30);
+        User user = User.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .failedLoginAttempts(5)
+                .lockedUntil(now.minusMinutes(1))
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        boolean locked = userService.recordFailedLoginAttempt(1L, now);
+
+        assertThat(locked).isFalse();
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+        assertThat(user.getLockedUntil()).isNull();
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void resetFailedLoginAttempts_ShouldClearCounterAndLockedUntil() {
+        User user = User.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .failedLoginAttempts(4)
+                .lockedUntil(LocalDateTime.now().minusMinutes(5))
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        userService.resetFailedLoginAttempts(1L);
+
+        assertThat(user.getFailedLoginAttempts()).isZero();
+        assertThat(user.getLockedUntil()).isNull();
+        verify(userRepository).save(user);
     }
 }

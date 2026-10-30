@@ -64,6 +64,15 @@ public class JwtTokenService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 
+    public String generateNumericOtp() {
+        int code = SECURE_RANDOM.nextInt(1_000_000);
+        return String.format("%06d", code);
+    }
+
+    public String hashOtp(String rawOtp) {
+        return hashRefreshToken(rawOtp);
+    }
+
     public String hashRefreshToken(String rawRefreshToken) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

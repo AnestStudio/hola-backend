@@ -1,5 +1,7 @@
+DROP TABLE IF EXISTS email_verification_tokens;
 DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS auth_refresh_tokens;
+DROP TABLE IF EXISTS user_auth_providers;
 DROP TABLE IF EXISTS user_roles;
 DROP TABLE IF EXISTS user_details;
 DROP TABLE IF EXISTS users;
@@ -19,15 +21,32 @@ INSERT INTO roles (role_name, description) VALUES
     ('MERCHANT', 'Chủ cửa hàng đồ ăn / thức uống');
 
 CREATE TABLE users (
-    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-    email         VARCHAR(150) CHARACTER SET utf8mb4 UNIQUE NOT NULL,
-    password_hash VARCHAR(255) CHARACTER SET utf8mb4 NOT NULL,
-    full_name     VARCHAR(150) CHARACTER SET utf8mb4 NOT NULL,
-    status        VARCHAR(30) CHARACTER SET utf8mb4 DEFAULT 'ACTIVE' NOT NULL,
-    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
-    created_by    VARCHAR(100) CHARACTER SET utf8mb4 NULL,
-    updated_by    VARCHAR(100) CHARACTER SET utf8mb4 NULL
+    id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+    email                 VARCHAR(150) CHARACTER SET utf8mb4 UNIQUE NOT NULL,
+    password_hash         VARCHAR(255) CHARACTER SET utf8mb4 NULL,
+    full_name             VARCHAR(150) CHARACTER SET utf8mb4 NOT NULL,
+    status                VARCHAR(30) CHARACTER SET utf8mb4 DEFAULT 'ACTIVE' NOT NULL,
+    failed_login_attempts INT DEFAULT 0 NOT NULL,
+    locked_until          DATETIME NULL,
+    created_at            DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
+    created_by            VARCHAR(100) CHARACTER SET utf8mb4 NULL,
+    updated_by            VARCHAR(100) CHARACTER SET utf8mb4 NULL
+);
+
+CREATE TABLE user_auth_providers (
+    id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id        BIGINT NOT NULL,
+    provider       VARCHAR(30) CHARACTER SET utf8mb4 NOT NULL,
+    provider_id    VARCHAR(150) CHARACTER SET utf8mb4 NOT NULL,
+    provider_email VARCHAR(150) CHARACTER SET utf8mb4 NULL,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
+    created_by     VARCHAR(100) CHARACTER SET utf8mb4 NULL,
+    updated_by     VARCHAR(100) CHARACTER SET utf8mb4 NULL,
+    UNIQUE KEY uk_provider_account (provider, provider_id),
+    UNIQUE KEY uk_user_provider (user_id, provider),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE user_details (
@@ -71,7 +90,22 @@ CREATE TABLE auth_refresh_tokens (
 CREATE TABLE password_reset_tokens (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id    BIGINT NOT NULL,
-    token_hash VARCHAR(64) CHARACTER SET utf8mb4 NOT NULL UNIQUE,
+    otp_hash   VARCHAR(64) CHARACTER SET utf8mb4 NOT NULL,
+    attempts   INT DEFAULT 0 NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at    DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
+    created_by VARCHAR(100) CHARACTER SET utf8mb4 NULL,
+    updated_by VARCHAR(100) CHARACTER SET utf8mb4 NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE email_verification_tokens (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id    BIGINT NOT NULL,
+    otp_hash   VARCHAR(64) CHARACTER SET utf8mb4 NOT NULL,
+    attempts   INT DEFAULT 0 NOT NULL,
     expires_at DATETIME NOT NULL,
     used_at    DATETIME NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,

@@ -49,7 +49,37 @@ class AuthAndSecurityIntegrationTest {
     private UserService userService;
 
     @Test
-    void register_WithValidPayload_ShouldReturn201Created() throws Exception {
+    void register_WithValidPayload_ShouldReturn201CreatedWithUnverifiedUser() throws Exception {
+        UserResponse userResponse = UserResponse.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .fullName("Nguyen Van A")
+                .status(UserStatus.UNVERIFIED)
+                .roles(Set.of(RoleName.USER))
+                .build();
+
+        when(authService.register(any())).thenReturn(userResponse);
+
+        String requestJson = """
+                {
+                  "email": "student@hola.edu.vn",
+                  "password": "Password123!",
+                  "fullName": "Nguyen Van A"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.message").value("Đăng ký tài khoản thành công, vui lòng kiểm tra email để lấy mã xác thực OTP"))
+                .andExpect(jsonPath("$.data.email").value("student@hola.edu.vn"))
+                .andExpect(jsonPath("$.data.status").value("UNVERIFIED"));
+    }
+
+    @Test
+    void verifyEmail_WithValidOtp_ShouldReturn200WithTokens() throws Exception {
         UserResponse userResponse = UserResponse.builder()
                 .id(1L)
                 .email("student@hola.edu.vn")
@@ -65,25 +95,93 @@ class AuthAndSecurityIntegrationTest {
                 .user(userResponse)
                 .build();
 
-        when(authService.register(any())).thenReturn(authResponse);
+        when(authService.verifyEmail(any())).thenReturn(authResponse);
 
         String requestJson = """
                 {
                   "email": "student@hola.edu.vn",
-                  "password": "Password123!",
-                  "fullName": "Nguyen Van A"
+                  "otp": "123456"
                 }
                 """;
 
-        mockMvc.perform(post("/api/v1/auth/register")
+        mockMvc.perform(post("/api/v1/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(1000))
-                .andExpect(jsonPath("$.message").value("Đăng ký tài khoản thành công"))
+                .andExpect(jsonPath("$.message").value("Xác thực email thành công"))
                 .andExpect(jsonPath("$.data.accessToken").value("jwt-access-token"))
-                .andExpect(jsonPath("$.data.refreshToken").value("opaque-refresh-token"))
-                .andExpect(jsonPath("$.data.user.email").value("student@hola.edu.vn"));
+                .andExpect(jsonPath("$.data.user.status").value("ACTIVE"));
+    }
+
+    @Test
+    void verifyEmail_WithInvalidOtpFormat_ShouldReturn400ValidationError() throws Exception {
+        String invalidJson = """
+                {
+                  "email": "student@hola.edu.vn",
+                  "otp": "12ab"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/verify-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(9002))
+                .andExpect(jsonPath("$.data.otp").value("Mã OTP phải gồm đúng 6 chữ số"));
+    }
+
+    @Test
+    void verifyEmail_WhenMaxAttemptsExceeded_ShouldReturn400WithCode1010() throws Exception {
+        when(authService.verifyEmail(any())).thenThrow(new AppException(ErrorCode.OTP_MAX_ATTEMPTS_EXCEEDED));
+
+        String requestJson = """
+                {
+                  "email": "student@hola.edu.vn",
+                  "otp": "000000"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/verify-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(1010))
+                .andExpect(jsonPath("$.message").value("Bạn đã nhập sai mã OTP quá 5 lần, vui lòng yêu cầu gửi lại mã mới"));
+    }
+
+    @Test
+    void forgotAndResetPassword_WithValidPayloads_ShouldReturn200Ok() throws Exception {
+        doNothing().when(authService).forgotPassword(any());
+        doNothing().when(authService).resetPassword(any());
+
+        String forgotJson = """
+                {
+                  "email": "student@hola.edu.vn"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(forgotJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.message").value("Nếu email tồn tại trong hệ thống, mã OTP đặt lại mật khẩu đã được gửi"));
+
+        String resetJson = """
+                {
+                  "email": "student@hola.edu.vn",
+                  "otp": "654321",
+                  "newPassword": "NewPassword123!"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resetJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.message").value("Đặt lại mật khẩu thành công"));
     }
 
     @Test
@@ -333,11 +431,30 @@ class AuthAndSecurityIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
+                .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(1004))
                 .andExpect(jsonPath("$.message").value("Email hoặc mật khẩu không chính xác"));
+    }
+
+    @Test
+    void login_WhenAccountTemporarilyLocked_ShouldReturn403ForbiddenWithCode1007() throws Exception {
+        when(authService.login(any())).thenThrow(new AppException(ErrorCode.ACCOUNT_TEMPORARILY_LOCKED));
+
+        String requestJson = """
+                {
+                  "email": "student@hola.edu.vn",
+                  "password": "WrongPassword123!"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(1007))
+                .andExpect(jsonPath("$.message").value("Tài khoản tạm thời bị khóa do đăng nhập sai quá nhiều lần, vui lòng thử lại sau 15 phút"));
     }
 
     @Test

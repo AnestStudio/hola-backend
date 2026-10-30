@@ -31,8 +31,12 @@ public class PasswordResetToken extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "token_hash", nullable = false, unique = true, length = 64)
-    private String tokenHash;
+    @Column(name = "otp_hash", nullable = false, length = 64)
+    private String otpHash;
+
+    @Builder.Default
+    @Column(name = "attempts", nullable = false)
+    private int attempts = 0;
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
@@ -46,6 +50,15 @@ public class PasswordResetToken extends BaseEntity {
 
     public boolean isUsed() {
         return usedAt != null;
+    }
+
+    public boolean isMaxAttemptsReached(int maxAttempts) {
+        return attempts >= maxAttempts;
+    }
+
+    public int incrementAttempts() {
+        this.attempts = this.attempts + 1;
+        return this.attempts;
     }
 }
 

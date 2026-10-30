@@ -24,8 +24,17 @@ public final class MessageKeys {
     public static final String ERROR_INVALID_CREDENTIALS = "error.invalid_credentials";
     public static final String ERROR_INVALID_REFRESH_TOKEN = "error.invalid_refresh_token";
     public static final String ERROR_ACCOUNT_INACTIVE = "error.account_inactive";
+    public static final String ERROR_ACCOUNT_TEMPORARILY_LOCKED = "error.account_temporarily_locked";
+    public static final String ERROR_ACCOUNT_UNVERIFIED = "error.account_unverified";
+    public static final String ERROR_INVALID_OTP = "error.invalid_otp";
+    public static final String ERROR_OTP_MAX_ATTEMPTS_EXCEEDED = "error.otp_max_attempts_exceeded";
+    public static final String ERROR_ACCOUNT_ALREADY_VERIFIED = "error.account_already_verified";
 
     public static final String AUTH_REGISTER_SUCCESS = "auth.register.success";
+    public static final String AUTH_VERIFY_EMAIL_SUCCESS = "auth.verify_email.success";
+    public static final String AUTH_RESEND_OTP_SUCCESS = "auth.resend_otp.success";
+    public static final String AUTH_FORGOT_PASSWORD_SUCCESS = "auth.forgot_password.success";
+    public static final String AUTH_RESET_PASSWORD_SUCCESS = "auth.reset_password.success";
     public static final String AUTH_LOGIN_SUCCESS = "auth.login.success";
     public static final String AUTH_REFRESH_SUCCESS = "auth.refresh.success";
     public static final String AUTH_LOGOUT_SUCCESS = "auth.logout.success";
