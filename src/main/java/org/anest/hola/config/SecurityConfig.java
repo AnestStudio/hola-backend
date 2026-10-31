@@ -1,6 +1,9 @@
 package org.anest.hola.config;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.anest.hola.common.dto.ApiResponse;
@@ -25,19 +28,26 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Configuration
 @EnableWebSecurity
@@ -65,7 +75,15 @@ public class SecurityConfig {
             "/api/v1/auth/logout"
     };
 
+    private static final Set<String> RATE_LIMITED_OTP_ENDPOINTS = Set.of(
+            "/api/v1/auth/resend-verification-otp",
+            "/api/v1/auth/forgot-password"
+    );
+
+    private static final long RATE_LIMIT_WINDOW_MS = 60_000L;
+
     private final ObjectMapper objectMapper;
+    private final ConcurrentHashMap<String, Deque<Long>> otpRequestBuckets = new ConcurrentHashMap<>();
 
     @Value("${security.jwt.secret}")
     private String jwtSecret;
@@ -73,12 +91,16 @@ public class SecurityConfig {
     @Value("${security.cors.allowed-origins}")
     private List<String> allowedOrigins;
 
+    @Value("${security.otp.rate-limit-per-minute:5}")
+    private int otpRateLimitPerMinute = 5;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(otpEndpointRateLimitFilter(), BearerTokenAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_AUTH_POST_ENDPOINTS).permitAll()
@@ -152,6 +174,45 @@ public class SecurityConfig {
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) ->
                 writeErrorResponse(response, ErrorCode.ACCESS_DENIED);
+    }
+
+    private OncePerRequestFilter otpEndpointRateLimitFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(
+                    HttpServletRequest request,
+                    HttpServletResponse response,
+                    FilterChain filterChain) throws ServletException, IOException {
+                if (HttpMethod.POST.matches(request.getMethod())
+                        && RATE_LIMITED_OTP_ENDPOINTS.contains(request.getRequestURI())
+                        && !tryAcquireOtpRequestSlot(request)) {
+                    writeErrorResponse(response, ErrorCode.TOO_MANY_REQUESTS);
+                    return;
+                }
+                filterChain.doFilter(request, response);
+            }
+        };
+    }
+
+    private boolean tryAcquireOtpRequestSlot(HttpServletRequest request) {
+        String clientIp = request.getRemoteAddr() != null ? request.getRemoteAddr() : "unknown";
+        String bucketKey = request.getRequestURI() + ":" + clientIp;
+        long now = System.currentTimeMillis();
+        AtomicBoolean allowed = new AtomicBoolean(false);
+
+        otpRequestBuckets.compute(bucketKey, (key, timestamps) -> {
+            Deque<Long> deque = timestamps != null ? timestamps : new ArrayDeque<>();
+            while (!deque.isEmpty() && now - deque.peekFirst() >= RATE_LIMIT_WINDOW_MS) {
+                deque.pollFirst();
+            }
+            if (deque.size() < otpRateLimitPerMinute) {
+                deque.addLast(now);
+                allowed.set(true);
+            }
+            return deque.isEmpty() ? null : deque;
+        });
+
+        return allowed.get();
     }
 
     private void writeErrorResponse(HttpServletResponse response, ErrorCode errorCode) throws IOException {

@@ -5,8 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.anest.hola.modules.identity.entity.RoleName;
-import org.anest.hola.modules.identity.entity.UserStatus;
+import org.anest.hola.modules.identity.model.RoleName;
+import org.anest.hola.modules.identity.model.UserStatus;
 
 import java.time.LocalDateTime;
 import java.util.Set;

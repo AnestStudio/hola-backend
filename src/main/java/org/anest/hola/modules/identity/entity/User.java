@@ -18,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.anest.hola.common.entity.BaseEntity;
+import org.anest.hola.modules.identity.model.UserStatus;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;

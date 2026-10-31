@@ -1,4 +1,4 @@
-package org.anest.hola.modules.identity.entity;
+package org.anest.hola.modules.identity.model;
 
 public enum UserStatus {
     UNVERIFIED,

@@ -9,8 +9,8 @@ import org.anest.hola.modules.auth.service.AuthService;
 import org.anest.hola.modules.auth.service.JwtTokenService;
 import org.anest.hola.modules.identity.controller.UserController;
 import org.anest.hola.modules.identity.dto.UserResponse;
-import org.anest.hola.modules.identity.entity.RoleName;
-import org.anest.hola.modules.identity.entity.UserStatus;
+import org.anest.hola.modules.identity.model.RoleName;
+import org.anest.hola.modules.identity.model.UserStatus;
 import org.anest.hola.modules.identity.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -148,6 +148,61 @@ class AuthAndSecurityIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(1010))
                 .andExpect(jsonPath("$.message").value("Bạn đã nhập sai mã OTP quá 5 lần, vui lòng yêu cầu gửi lại mã mới"));
+    }
+
+    @Test
+    void resendVerificationOtp_ShouldAlwaysReturnUniform200Message() throws Exception {
+        doNothing().when(authService).resendVerificationOtp(any());
+
+        String requestJson = """
+                {
+                  "email": "any-user@hola.edu.vn"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/resend-verification-otp")
+                        .with(req -> {
+                            req.setRemoteAddr("10.0.0.1");
+                            return req;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.message").value("Nếu tài khoản đủ điều kiện, mã xác minh sẽ được gửi đến email"));
+    }
+
+    @Test
+    void resendVerificationOtp_WhenExceedingRateLimit_ShouldReturn429TooManyRequests() throws Exception {
+        doNothing().when(authService).resendVerificationOtp(any());
+
+        String requestJson = """
+                {
+                  "email": "flood@hola.edu.vn"
+                }
+                """;
+
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/v1/auth/resend-verification-otp")
+                            .with(req -> {
+                                req.setRemoteAddr("10.0.0.99");
+                                return req;
+                            })
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestJson))
+                    .andExpect(status().isOk());
+        }
+
+        mockMvc.perform(post("/api/v1/auth/resend-verification-otp")
+                        .with(req -> {
+                            req.setRemoteAddr("10.0.0.99");
+                            return req;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value(9006))
+                .andExpect(jsonPath("$.message").value("Bạn đã gửi quá nhiều yêu cầu, vui lòng thử lại sau ít phút"));
     }
 
     @Test
@@ -431,7 +486,7 @@ class AuthAndSecurityIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(1004))
@@ -562,4 +617,3 @@ class AuthAndSecurityIntegrationTest {
                 .andExpect(jsonPath("$.data.refreshToken").value("Refresh token không được để trống"));
     }
 }
-

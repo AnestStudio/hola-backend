@@ -16,6 +16,7 @@ public final class MessageKeys {
     public static final String ERROR_RESOURCE_NOT_FOUND = "error.resource_not_found";
     public static final String ERROR_METHOD_NOT_ALLOWED = "error.method_not_allowed";
     public static final String ERROR_DATA_CONFLICT = "error.data_conflict";
+    public static final String ERROR_TOO_MANY_REQUESTS = "error.too_many_requests";
 
     // Auth & Security
     public static final String ERROR_UNAUTHENTICATED = "error.unauthenticated";
@@ -42,5 +43,10 @@ public final class MessageKeys {
     // User
     public static final String ERROR_USER_NOT_FOUND = "error.user_not_found";
     public static final String ERROR_USER_ALREADY_EXISTS = "error.user_already_exists";
-}
 
+    // Notification & Email
+    public static final String EMAIL_VERIFICATION_OTP_SUBJECT = "email.verification_otp.subject";
+    public static final String EMAIL_VERIFICATION_OTP_BODY = "email.verification_otp.body";
+    public static final String EMAIL_PASSWORD_RESET_OTP_SUBJECT = "email.password_reset_otp.subject";
+    public static final String EMAIL_PASSWORD_RESET_OTP_BODY = "email.password_reset_otp.body";
+}

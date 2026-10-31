@@ -20,7 +20,7 @@ import org.anest.hola.modules.auth.repository.PasswordResetTokenRepository;
 import org.anest.hola.modules.auth.repository.RefreshTokenRepository;
 import org.anest.hola.modules.identity.dto.UserAuthDto;
 import org.anest.hola.modules.identity.dto.UserResponse;
-import org.anest.hola.modules.identity.entity.UserStatus;
+import org.anest.hola.modules.identity.model.UserStatus;
 import org.anest.hola.modules.identity.service.UserService;
 import org.anest.hola.modules.notification.service.EmailService;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +39,7 @@ public class AuthService {
 
     public static final int DEFAULT_OTP_MAX_ATTEMPTS = 5;
     public static final long DEFAULT_OTP_EXPIRATION_MINUTES = 10L;
+    public static final long DEFAULT_OTP_RESEND_COOLDOWN_SECONDS = 60L;
 
     private static final String DUMMY_PASSWORD_HASH =
             "$2a$10$7EqJtq98hPqEX7fNZaFWoOHi7J8S9E6f/W3Q1xG5y8K9L2M3N4O5P";
@@ -56,6 +57,9 @@ public class AuthService {
 
     @Value("${security.otp.max-attempts:5}")
     private int otpMaxAttempts = DEFAULT_OTP_MAX_ATTEMPTS;
+
+    @Value("${security.otp.resend-cooldown-seconds:60}")
+    private long otpResendCooldownSeconds = DEFAULT_OTP_RESEND_COOLDOWN_SECONDS;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -113,15 +117,24 @@ public class AuthService {
 
     @Transactional
     public void resendVerificationOtp(ResendOtpRequest request) {
-        UserAuthDto authUser = userService.findAuthByEmail(request.getEmail())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-        UserResponse user = authUser.getUser();
-        if (user.getStatus() == UserStatus.ACTIVE) {
-            throw new AppException(ErrorCode.ACCOUNT_ALREADY_VERIFIED);
+        Optional<UserAuthDto> authUserOpt = userService.findAuthByEmail(request.getEmail());
+        if (authUserOpt.isEmpty()) {
+            return;
         }
+
+        UserResponse user = authUserOpt.get().getUser();
         if (user.getStatus() != UserStatus.UNVERIFIED) {
-            throw new AppException(ErrorCode.ACCOUNT_INACTIVE);
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        Optional<EmailVerificationToken> latestTokenOpt = emailVerificationTokenRepository
+                .findTopByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(user.getId());
+        if (latestTokenOpt.isPresent()) {
+            LocalDateTime createdAt = latestTokenOpt.get().getCreatedAt();
+            if (createdAt != null && createdAt.plusSeconds(otpResendCooldownSeconds).isAfter(now)) {
+                return;
+            }
         }
 
         issueVerificationOtp(user);
@@ -139,6 +152,16 @@ public class AuthService {
             return;
         }
 
+        LocalDateTime now = LocalDateTime.now();
+        Optional<PasswordResetToken> latestTokenOpt = passwordResetTokenRepository
+                .findTopByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(user.getId());
+        if (latestTokenOpt.isPresent()) {
+            LocalDateTime createdAt = latestTokenOpt.get().getCreatedAt();
+            if (createdAt != null && createdAt.plusSeconds(otpResendCooldownSeconds).isAfter(now)) {
+                return;
+            }
+        }
+
         String rawOtp = jwtTokenService.generateNumericOtp();
         String otpHash = jwtTokenService.hashOtp(rawOtp);
 
@@ -146,7 +169,7 @@ public class AuthService {
                 .userId(user.getId())
                 .otpHash(otpHash)
                 .attempts(0)
-                .expiresAt(LocalDateTime.now().plusMinutes(otpExpirationMinutes))
+                .expiresAt(now.plusMinutes(otpExpirationMinutes))
                 .build();
         passwordResetTokenRepository.save(resetToken);
 
@@ -228,11 +251,8 @@ public class AuthService {
             throw new AppException(ErrorCode.ACCOUNT_INACTIVE);
         }
 
-        if (authUser.getFailedLoginAttempts() > 0 || authUser.getLockedUntil() != null) {
-            userService.resetFailedLoginAttempts(user.getId());
-        }
-
-        return issueTokens(user);
+        UserResponse currentUser = userService.completeSuccessfulLogin(user.getId(), LocalDateTime.now());
+        return issueTokens(currentUser);
     }
 
     @Transactional

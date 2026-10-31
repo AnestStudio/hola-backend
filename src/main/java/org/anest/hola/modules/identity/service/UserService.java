@@ -6,9 +6,9 @@ import org.anest.hola.common.exception.ErrorCode;
 import org.anest.hola.modules.identity.dto.UserAuthDto;
 import org.anest.hola.modules.identity.dto.UserResponse;
 import org.anest.hola.modules.identity.entity.Role;
-import org.anest.hola.modules.identity.entity.RoleName;
+import org.anest.hola.modules.identity.model.RoleName;
 import org.anest.hola.modules.identity.entity.User;
-import org.anest.hola.modules.identity.entity.UserStatus;
+import org.anest.hola.modules.identity.model.UserStatus;
 import org.anest.hola.modules.identity.mapper.UserMapper;
 import org.anest.hola.modules.identity.repository.RoleRepository;
 import org.anest.hola.modules.identity.repository.UserRepository;
@@ -67,14 +67,17 @@ public class UserService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean recordFailedLoginAttempt(Long userId, LocalDateTime now) {
-        Optional<User> userOpt = userRepository.findById(userId);
+        Optional<User> userOpt = userRepository.findByIdForUpdate(userId);
         if (userOpt.isEmpty()) {
             return false;
         }
 
         User user = userOpt.get();
         int currentAttempts = user.getFailedLoginAttempts();
-        if (user.getLockedUntil() != null && !user.getLockedUntil().isAfter(now)) {
+        if (user.getLockedUntil() != null) {
+            if (user.getLockedUntil().isAfter(now)) {
+                return true;
+            }
             currentAttempts = 0;
             user.setLockedUntil(null);
         }
@@ -92,13 +95,20 @@ public class UserService {
         return locked;
     }
 
-    @Transactional
-    public void resetFailedLoginAttempts(Long userId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            user.setFailedLoginAttempts(0);
-            user.setLockedUntil(null);
-            userRepository.save(user);
-        });
+    @Transactional(noRollbackFor = AppException.class)
+    public UserResponse completeSuccessfulLogin(Long userId, LocalDateTime now) {
+        int updatedRows = userRepository.completeSuccessfulLogin(userId, UserStatus.ACTIVE, now);
+        if (updatedRows != 1) {
+            User currentUser = userRepository.findByIdForUpdate(userId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+            if (currentUser.getStatus() != UserStatus.ACTIVE) {
+                throw new AppException(ErrorCode.ACCOUNT_INACTIVE);
+            }
+            throw new AppException(ErrorCode.ACCOUNT_TEMPORARILY_LOCKED);
+        }
+        User user = userRepository.findWithRolesById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        return userMapper.toResponse(user);
     }
 
     @Transactional
@@ -134,7 +144,7 @@ public class UserService {
 
     @Transactional
     public void updatePassword(Long userId, String newPasswordHash) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         user.setPasswordHash(newPasswordHash);
         user.setFailedLoginAttempts(0);

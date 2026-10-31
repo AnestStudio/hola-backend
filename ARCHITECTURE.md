@@ -113,6 +113,7 @@ org.anest.hola/
     │   ├── dto/
     │   ├── entity/
     │   ├── mapper/
+    │   ├── model/
     │   ├── repository/
     │   └── service/
     │

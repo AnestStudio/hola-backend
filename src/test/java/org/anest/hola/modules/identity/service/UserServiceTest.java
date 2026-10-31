@@ -4,9 +4,9 @@ import org.anest.hola.common.exception.AppException;
 import org.anest.hola.common.exception.ErrorCode;
 import org.anest.hola.modules.identity.dto.UserResponse;
 import org.anest.hola.modules.identity.entity.Role;
-import org.anest.hola.modules.identity.entity.RoleName;
+import org.anest.hola.modules.identity.model.RoleName;
 import org.anest.hola.modules.identity.entity.User;
-import org.anest.hola.modules.identity.entity.UserStatus;
+import org.anest.hola.modules.identity.model.UserStatus;
 import org.anest.hola.modules.identity.mapper.UserMapper;
 import org.anest.hola.modules.identity.repository.RoleRepository;
 import org.anest.hola.modules.identity.repository.UserRepository;
@@ -24,6 +24,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -157,7 +158,7 @@ class UserServiceTest {
                 .failedLoginAttempts(2)
                 .build();
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
         LocalDateTime now = LocalDateTime.of(2026, 10, 30, 12, 0);
         boolean locked = userService.recordFailedLoginAttempt(1L, now);
@@ -176,7 +177,7 @@ class UserServiceTest {
                 .failedLoginAttempts(4)
                 .build();
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
         LocalDateTime now = LocalDateTime.of(2026, 10, 30, 12, 0);
         boolean locked = userService.recordFailedLoginAttempt(1L, now);
@@ -185,6 +186,27 @@ class UserServiceTest {
         assertThat(user.getFailedLoginAttempts()).isEqualTo(5);
         assertThat(user.getLockedUntil()).isEqualTo(now.plusMinutes(15));
         verify(userRepository).save(user);
+    }
+
+    @Test
+    void recordFailedLoginAttempt_WhenAlreadyLockedByConcurrentRequest_ShouldKeepLockAndReturnTrue() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 30, 12, 0);
+        LocalDateTime existingLockUntil = now.plusMinutes(15);
+        User user = User.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .failedLoginAttempts(5)
+                .lockedUntil(existingLockUntil)
+                .build();
+
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+
+        boolean locked = userService.recordFailedLoginAttempt(1L, now);
+
+        assertThat(locked).isTrue();
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(5);
+        assertThat(user.getLockedUntil()).isEqualTo(existingLockUntil);
+        verify(userRepository, never()).save(any());
     }
 
     @Test
@@ -197,7 +219,7 @@ class UserServiceTest {
                 .lockedUntil(now.minusMinutes(1))
                 .build();
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
         boolean locked = userService.recordFailedLoginAttempt(1L, now);
 
@@ -208,20 +230,29 @@ class UserServiceTest {
     }
 
     @Test
-    void resetFailedLoginAttempts_ShouldClearCounterAndLockedUntil() {
-        User user = User.builder()
-                .id(1L)
-                .email("student@hola.edu.vn")
-                .failedLoginAttempts(4)
-                .lockedUntil(LocalDateTime.now().minusMinutes(5))
-                .build();
+    void completeSuccessfulLogin_WhenAccountIsActiveAndUnlocked_ShouldReturnCurrentUser() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 31, 16, 0);
+        User user = User.builder().id(1L).status(UserStatus.ACTIVE).build();
+        UserResponse response = UserResponse.builder().id(1L).status(UserStatus.ACTIVE).build();
+        when(userRepository.completeSuccessfulLogin(1L, UserStatus.ACTIVE, now)).thenReturn(1);
+        when(userRepository.findWithRolesById(1L)).thenReturn(Optional.of(user));
+        when(userMapper.toResponse(user)).thenReturn(response);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        assertThat(userService.completeSuccessfulLogin(1L, now)).isSameAs(response);
+        verify(userRepository).completeSuccessfulLogin(1L, UserStatus.ACTIVE, now);
+    }
 
-        userService.resetFailedLoginAttempts(1L);
+    @Test
+    void completeSuccessfulLogin_WhenAccountWasLocked_ShouldRejectWithoutReadingStaleUser() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 31, 16, 0);
+        when(userRepository.completeSuccessfulLogin(1L, UserStatus.ACTIVE, now)).thenReturn(0);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(
+                User.builder().id(1L).status(UserStatus.ACTIVE).lockedUntil(now.plusMinutes(15)).build()));
 
-        assertThat(user.getFailedLoginAttempts()).isZero();
-        assertThat(user.getLockedUntil()).isNull();
-        verify(userRepository).save(user);
+        assertThatThrownBy(() -> userService.completeSuccessfulLogin(1L, now))
+                .isInstanceOf(AppException.class)
+                .extracting(ex -> ((AppException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.ACCOUNT_TEMPORARILY_LOCKED);
+        verify(userRepository, never()).findWithRolesById(1L);
     }
 }

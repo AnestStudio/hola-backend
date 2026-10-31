@@ -2,7 +2,7 @@ package org.anest.hola.modules.identity.mapper;
 
 import org.anest.hola.modules.identity.dto.UserResponse;
 import org.anest.hola.modules.identity.entity.Role;
-import org.anest.hola.modules.identity.entity.RoleName;
+import org.anest.hola.modules.identity.model.RoleName;
 import org.anest.hola.modules.identity.entity.User;
 import org.mapstruct.Mapper;
 

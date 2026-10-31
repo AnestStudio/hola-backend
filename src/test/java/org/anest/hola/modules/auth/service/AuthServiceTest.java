@@ -8,6 +8,7 @@ import org.anest.hola.modules.auth.dto.LoginRequest;
 import org.anest.hola.modules.auth.dto.LogoutRequest;
 import org.anest.hola.modules.auth.dto.RefreshTokenRequest;
 import org.anest.hola.modules.auth.dto.RegisterRequest;
+import org.anest.hola.modules.auth.dto.ResendOtpRequest;
 import org.anest.hola.modules.auth.dto.ResetPasswordRequest;
 import org.anest.hola.modules.auth.dto.VerifyEmailRequest;
 import org.anest.hola.modules.auth.entity.EmailVerificationToken;
@@ -18,8 +19,8 @@ import org.anest.hola.modules.auth.repository.PasswordResetTokenRepository;
 import org.anest.hola.modules.auth.repository.RefreshTokenRepository;
 import org.anest.hola.modules.identity.dto.UserAuthDto;
 import org.anest.hola.modules.identity.dto.UserResponse;
-import org.anest.hola.modules.identity.entity.RoleName;
-import org.anest.hola.modules.identity.entity.UserStatus;
+import org.anest.hola.modules.identity.model.RoleName;
+import org.anest.hola.modules.identity.model.UserStatus;
 import org.anest.hola.modules.identity.service.UserService;
 import org.anest.hola.modules.notification.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +73,7 @@ class AuthServiceTest {
 
     private UserResponse activeUserResponse;
     private UserResponse unverifiedUserResponse;
+    private UserResponse lockedUserResponse;
 
     @BeforeEach
     void setUp() {
@@ -88,6 +90,14 @@ class AuthServiceTest {
                 .email("student@hola.edu.vn")
                 .fullName("Nguyen Van A")
                 .status(UserStatus.UNVERIFIED)
+                .roles(Set.of(RoleName.USER))
+                .build();
+
+        lockedUserResponse = UserResponse.builder()
+                .id(1L)
+                .email("student@hola.edu.vn")
+                .fullName("Nguyen Van A")
+                .status(UserStatus.LOCKED)
                 .roles(Set.of(RoleName.USER))
                 .build();
     }
@@ -119,6 +129,75 @@ class AuthServiceTest {
         assertThat(tokenCaptor.getValue().getAttempts()).isZero();
 
         verify(emailService).sendVerificationOtp("student@hola.edu.vn", "Nguyen Van A", "123456", 10L);
+    }
+
+    @Test
+    void resendVerificationOtp_WhenUserDoesNotExist_ShouldSilentlyReturnWithoutSendingOtp() {
+        when(userService.findAuthByEmail("unknown@hola.edu.vn")).thenReturn(Optional.empty());
+
+        authService.resendVerificationOtp(new ResendOtpRequest("unknown@hola.edu.vn"));
+
+        verify(emailVerificationTokenRepository, never()).save(any());
+        verify(emailService, never()).sendVerificationOtp(any(), any(), any(), any(Long.class));
+    }
+
+    @Test
+    void resendVerificationOtp_WhenUserIsAlreadyActiveOrLocked_ShouldSilentlyReturnWithoutSendingOtp() {
+        UserAuthDto activeAuthDto = UserAuthDto.builder().user(activeUserResponse).build();
+        UserAuthDto lockedAuthDto = UserAuthDto.builder().user(lockedUserResponse).build();
+
+        when(userService.findAuthByEmail("active@hola.edu.vn")).thenReturn(Optional.of(activeAuthDto));
+        when(userService.findAuthByEmail("locked@hola.edu.vn")).thenReturn(Optional.of(lockedAuthDto));
+
+        authService.resendVerificationOtp(new ResendOtpRequest("active@hola.edu.vn"));
+        authService.resendVerificationOtp(new ResendOtpRequest("locked@hola.edu.vn"));
+
+        verify(emailVerificationTokenRepository, never()).save(any());
+        verify(emailService, never()).sendVerificationOtp(any(), any(), any(), any(Long.class));
+    }
+
+    @Test
+    void resendVerificationOtp_WhenWithinCooldownWindow_ShouldSilentlyReturnWithoutSendingDuplicateOtp() {
+        UserAuthDto unverifiedAuthDto = UserAuthDto.builder().user(unverifiedUserResponse).build();
+        EmailVerificationToken recentToken = EmailVerificationToken.builder()
+                .id(100L)
+                .userId(1L)
+                .otpHash("recent-hash")
+                .expiresAt(LocalDateTime.now().plusMinutes(9))
+                .build();
+        recentToken.setCreatedAt(LocalDateTime.now().minusSeconds(20));
+
+        when(userService.findAuthByEmail("student@hola.edu.vn")).thenReturn(Optional.of(unverifiedAuthDto));
+        when(emailVerificationTokenRepository.findTopByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(1L))
+                .thenReturn(Optional.of(recentToken));
+
+        authService.resendVerificationOtp(new ResendOtpRequest("student@hola.edu.vn"));
+
+        verify(emailVerificationTokenRepository, never()).save(any());
+        verify(emailService, never()).sendVerificationOtp(any(), any(), any(), any(Long.class));
+    }
+
+    @Test
+    void resendVerificationOtp_ForEligibleUnverifiedUser_ShouldIssueAndSendNewOtp() {
+        UserAuthDto unverifiedAuthDto = UserAuthDto.builder().user(unverifiedUserResponse).build();
+        EmailVerificationToken oldToken = EmailVerificationToken.builder()
+                .id(100L)
+                .userId(1L)
+                .otpHash("old-hash")
+                .expiresAt(LocalDateTime.now().plusMinutes(5))
+                .build();
+        oldToken.setCreatedAt(LocalDateTime.now().minusSeconds(90));
+
+        when(userService.findAuthByEmail("student@hola.edu.vn")).thenReturn(Optional.of(unverifiedAuthDto));
+        when(emailVerificationTokenRepository.findTopByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(1L))
+                .thenReturn(Optional.of(oldToken));
+        when(jwtTokenService.generateNumericOtp()).thenReturn("654321");
+        when(jwtTokenService.hashOtp("654321")).thenReturn("new-hashed-otp");
+
+        authService.resendVerificationOtp(new ResendOtpRequest("student@hola.edu.vn"));
+
+        verify(emailVerificationTokenRepository).save(any(EmailVerificationToken.class));
+        verify(emailService).sendVerificationOtp("student@hola.edu.vn", "Nguyen Van A", "654321", 10L);
     }
 
     @Test
@@ -311,6 +390,8 @@ class AuthServiceTest {
                 .build();
 
         when(userService.findAuthByEmail("student@hola.edu.vn")).thenReturn(Optional.of(activeAuthDto));
+        when(passwordResetTokenRepository.findTopByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(1L))
+                .thenReturn(Optional.empty());
         when(jwtTokenService.generateNumericOtp()).thenReturn("654321");
         when(jwtTokenService.hashOtp("654321")).thenReturn("hashed-reset-otp");
 
@@ -432,7 +513,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void login_WhenValidAfterPriorFailedAttempts_ShouldResetFailedLoginAttempts() {
+    void login_WhenValidAfterPriorFailedAttempts_ShouldCompleteLoginAndResetCounter() {
         LoginRequest request = LoginRequest.builder()
                 .email("student@hola.edu.vn")
                 .password("Password123!")
@@ -446,6 +527,8 @@ class AuthServiceTest {
 
         when(userService.findAuthByEmail("student@hola.edu.vn")).thenReturn(Optional.of(authDto));
         when(passwordEncoder.matches("Password123!", "hashed-password")).thenReturn(true);
+        when(userService.completeSuccessfulLogin(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(activeUserResponse);
         when(jwtTokenService.generateAccessToken(activeUserResponse)).thenReturn("access-token");
         when(jwtTokenService.generateRawRefreshToken()).thenReturn("raw-refresh-token");
         when(jwtTokenService.hashRefreshToken("raw-refresh-token")).thenReturn("hashed-refresh-token");
@@ -455,7 +538,31 @@ class AuthServiceTest {
         AuthResponse response = authService.login(request);
 
         assertThat(response.getAccessToken()).isEqualTo("access-token");
-        verify(userService).resetFailedLoginAttempts(1L);
+        verify(userService).completeSuccessfulLogin(eq(1L), any(LocalDateTime.class));
+    }
+
+    @Test
+    void login_WhenAccountLocksDuringPasswordCheck_ShouldNotIssueTokens() {
+        LoginRequest request = LoginRequest.builder()
+                .email("student@hola.edu.vn")
+                .password("Password123!")
+                .build();
+        UserAuthDto authDto = UserAuthDto.builder()
+                .passwordHash("hashed-password")
+                .user(activeUserResponse)
+                .build();
+
+        when(userService.findAuthByEmail("student@hola.edu.vn")).thenReturn(Optional.of(authDto));
+        when(passwordEncoder.matches("Password123!", "hashed-password")).thenReturn(true);
+        when(userService.completeSuccessfulLogin(eq(1L), any(LocalDateTime.class)))
+                .thenThrow(new AppException(ErrorCode.ACCOUNT_TEMPORARILY_LOCKED));
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(AppException.class)
+                .extracting(ex -> ((AppException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.ACCOUNT_TEMPORARILY_LOCKED);
+        verify(refreshTokenRepository, never()).save(any());
+        verify(jwtTokenService, never()).generateAccessToken(any());
     }
 
     @Test

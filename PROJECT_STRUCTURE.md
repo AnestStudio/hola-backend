@@ -82,11 +82,12 @@ hola-backend/
     │   │           ├── entity/
     │   │           │   ├── User.java              # Bảng users
     │   │           │   ├── UserDetail.java        # Bảng user_details (thông tin cá nhân mở rộng)
-    │   │           │   ├── Role.java              # Bảng roles
-    │   │           │   ├── RoleName.java          # Enum: USER, ADMIN, LANDLORD, EMPLOYER, MERCHANT
-    │   │           │   └── UserStatus.java        # Enum: UNVERIFIED, ACTIVE, INACTIVE, LOCKED, DELETED
+    │   │           │   └── Role.java              # Bảng roles
     │   │           ├── mapper/
     │   │           │   └── UserMapper.java        # MapStruct chuyển đổi User -> UserResponse
+    │   │           ├── model/
+    │   │           │   ├── RoleName.java          # Enum: USER, ADMIN, LANDLORD, EMPLOYER, MERCHANT
+    │   │           │   └── UserStatus.java        # Enum: UNVERIFIED, ACTIVE, INACTIVE, LOCKED, DELETED
     │   │           ├── repository/
     │   │           │   ├── UserRepository.java
     │   │           │   ├── UserDetailRepository.java
